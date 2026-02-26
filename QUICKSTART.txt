@@ -1,0 +1,53 @@
+🚀 БЫСТРЫЙ СТАРТ
+═══════════════════════════════════════
+
+1. СОЗДАЙ БОТА
+   └─ @BotFather → /newbot → получи токен
+
+2. УЗНАЙ СВОЙ ID  
+   └─ @userinfobot → /start → скопируй ID
+
+3. УСТАНОВИ НА СЕРВЕР
+   └─ sudo ./install.sh
+
+4. НАСТРОЙ
+   └─ sudo nano /opt/server-monitor-bot/server_monitor_bot.py
+   └─ Вставь: BOT_TOKEN и ADMIN_IDS
+
+5. ЗАПУСТИ
+   └─ sudo systemctl start server-monitor-bot
+   └─ sudo systemctl enable server-monitor-bot
+
+6. ДОБАВЬ В КАНАЛ
+   └─ Создай канал
+   └─ Добавь бота как админа
+   └─ Дай права на публикацию/редактирование
+
+✅ ГОТОВО! Бот начнет обновлять статус каждые 5 минут
+
+═══════════════════════════════════════
+
+📋 ОСНОВНЫЕ КОМАНДЫ:
+
+/status              - Текущий статус
+/services            - Список служб
+/ports               - Открытые порты
+/restart_service <имя> - Перезапуск службы
+/logs <служба> [N]   - Просмотр логов
+/close_port <номер>  - Закрыть порт
+/reboot              - Перезагрузка сервера
+
+═══════════════════════════════════════
+
+🔧 ПОЛЕЗНОЕ:
+
+Логи бота:
+└─ journalctl -u server-monitor-bot -f
+
+Перезапуск:
+└─ systemctl restart server-monitor-bot
+
+Статус:
+└─ systemctl status server-monitor-bot
+
+═══════════════════════════════════════
