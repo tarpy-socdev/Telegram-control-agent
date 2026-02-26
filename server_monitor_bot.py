@@ -10,6 +10,7 @@ import socket
 import subprocess
 import os
 import json
+import platform
 from datetime import datetime
 from typing import Dict, List, Optional
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -145,6 +146,50 @@ class ServerMonitor:
             return f"{load1:.2f} {load5:.2f} {load15:.2f} (cores: {cpu_count})"
         except:
             return "N/A"
+    
+    @staticmethod
+    def ping_host(host: str, count: int = 4) -> Dict[str, any]:
+        """Пинг хоста"""
+        try:
+            result = subprocess.run(
+                ['ping', '-c', str(count), host],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            
+            # Парсим результат
+            output = result.stdout
+            
+            # Извлекаем статистику
+            if 'rtt min/avg/max/mdev' in output or 'round-trip' in output:
+                stats_line = [line for line in output.split('\n') if 'min/avg/max' in line or 'round-trip' in line]
+                if stats_line:
+                    # Пример: rtt min/avg/max/mdev = 1.234/2.345/3.456/0.567 ms
+                    parts = stats_line[0].split('=')
+                    if len(parts) > 1:
+                        values = parts[1].strip().split()[0].split('/')
+                        return {
+                            'success': True,
+                            'host': host,
+                            'min': float(values[0]),
+                            'avg': float(values[1]),
+                            'max': float(values[2]),
+                            'output': output
+                        }
+            
+            # Если не удалось распарсить, просто возвращаем вывод
+            return {
+                'success': result.returncode == 0,
+                'host': host,
+                'output': output
+            }
+        except Exception as e:
+            return {
+                'success': False,
+                'host': host,
+                'error': str(e)
+            }
 
 
 class StatusMessageManager:
@@ -280,19 +325,21 @@ async def update_status_messages(context: ContextTypes.DEFAULT_TYPE):
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик команды /start"""
     await update.message.reply_text(
-        "🖥 **Бот мониторинга сервера**\n\n"
+        "🖥 БОТ МОНИТОРИНГА СЕРВЕРА\n\n"
         "Добавь меня в канал и я создам пост со статусом сервера, "
         "который будет обновляться каждые 5 минут!\n\n"
-        "**Команды:**\n"
+        "КОМАНДЫ:\n"
         "/status - Текущий статус\n"
         "/services - Список служб\n"
         "/ports - Открытые порты\n"
-        "/restart_service - Перезапустить службу\n"
+        "/ping [хост] - Пинг хоста\n"
+        "/test_update - Тест обновления статуса\n"
+        "/send_to_channel [текст] - Отправить в канал\n"
+        "/restart_service [имя] - Перезапустить службу\n"
         "/reboot - Перезагрузить сервер\n"
-        "/logs - Просмотр логов\n"
+        "/logs [служба] - Просмотр логов\n"
         "/clear_logs - Очистка логов\n"
-        "/close_port - Закрыть порт\n",
-        parse_mode='Markdown'
+        "/close_port [номер] - Закрыть порт\n"
     )
 
 
@@ -328,6 +375,93 @@ async def ports_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         message += "\n"
     
     await update.message.reply_text(message, parse_mode='Markdown')
+
+
+async def ping_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Пинг хоста"""
+    if not context.args:
+        await update.message.reply_text(
+            "Использование: /ping <хост>\n"
+            "Примеры:\n"
+            "  /ping google.com\n"
+            "  /ping 8.8.8.8\n"
+            "  /ping ya.ru"
+        )
+        return
+    
+    host = context.args[0]
+    await update.message.reply_text(f"🔄 Пингую {host}...")
+    
+    monitor = ServerMonitor()
+    result = monitor.ping_host(host)
+    
+    if result['success']:
+        if 'avg' in result:
+            message = f"🟢 **Ping {host}**\n\n"
+            message += f"✅ Хост доступен\n"
+            message += f"📊 Min: `{result['min']:.2f} ms`\n"
+            message += f"📊 Avg: `{result['avg']:.2f} ms`\n"
+            message += f"📊 Max: `{result['max']:.2f} ms`\n"
+        else:
+            message = f"🟢 **Ping {host}**\n\n✅ Хост доступен\n\n```\n{result['output']}\n```"
+    else:
+        error_msg = result.get('error', 'Хост недоступен')
+        message = f"🔴 **Ping {host}**\n\n❌ {error_msg}"
+        if 'output' in result:
+            message += f"\n\n```\n{result['output']}\n```"
+    
+    await update.message.reply_text(message, parse_mode='Markdown')
+
+
+async def test_update_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Тестовое обновление статуса (принудительное)"""
+    user_id = update.effective_user.id
+    
+    if ADMIN_IDS and user_id not in ADMIN_IDS:
+        await update.message.reply_text("❌ У вас нет прав для выполнения этой команды")
+        return
+    
+    await update.message.reply_text("🔄 Обновляю статус во всех каналах...")
+    
+    try:
+        await update_status_messages(context)
+        await update.message.reply_text("✅ Статус успешно обновлен во всех каналах!")
+    except Exception as e:
+        await update.message.reply_text(f"❌ Ошибка обновления: {str(e)}")
+
+
+async def send_to_channel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Отправить сообщение в канал"""
+    user_id = update.effective_user.id
+    
+    if ADMIN_IDS and user_id not in ADMIN_IDS:
+        await update.message.reply_text("❌ У вас нет прав для выполнения этой команды")
+        return
+    
+    if not context.args:
+        await update.message.reply_text(
+            "Использование: /send_to_channel <текст>\n"
+            "Пример: /send_to_channel Внимание! Проводятся технические работы"
+        )
+        return
+    
+    message_text = ' '.join(context.args)
+    status_manager: StatusMessageManager = context.bot_data['status_manager']
+    channels = status_manager.get_channels()
+    
+    if not channels:
+        await update.message.reply_text("❌ Нет подключенных каналов")
+        return
+    
+    success_count = 0
+    for chat_id in channels.keys():
+        try:
+            await context.bot.send_message(chat_id=chat_id, text=message_text, parse_mode='Markdown')
+            success_count += 1
+        except Exception as e:
+            print(f"Ошибка отправки в {chat_id}: {e}")
+    
+    await update.message.reply_text(f"✅ Сообщение отправлено в {success_count} канал(ов)")
 
 
 async def restart_service_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -602,6 +736,9 @@ def main():
     application.add_handler(CommandHandler("status", status_command))
     application.add_handler(CommandHandler("services", services_command))
     application.add_handler(CommandHandler("ports", ports_command))
+    application.add_handler(CommandHandler("ping", ping_command))
+    application.add_handler(CommandHandler("test_update", test_update_command))
+    application.add_handler(CommandHandler("send_to_channel", send_to_channel_command))
     application.add_handler(CommandHandler("restart_service", restart_service_command))
     application.add_handler(CommandHandler("reboot", reboot_command))
     application.add_handler(CommandHandler("logs", logs_command))
