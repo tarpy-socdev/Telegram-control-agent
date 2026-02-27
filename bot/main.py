@@ -3,7 +3,7 @@ from telegram.ext import Application
 
 from bot.config import BOT_TOKEN, UPDATE_INTERVAL
 from bot.core.controller import SystemController
-from bot.monitor.server import ServerMonitor
+from bot.monitor.server_optimized import ServerMonitor
 from bot.storage.status_store import StatusStore
 from bot.telegram.handlers import (
     job_alerts, job_auto_reboot, job_daily_report,
