@@ -11,7 +11,7 @@ from bot.config import ADMIN_IDS
 from bot.core.controller import SystemController
 from bot.monitor.server import ServerMonitor
 from bot.storage.status_store import StatusStore
-from bot.telegram.formatter import (
+from bot.telegram.formatter_optimized import (
     format_daily_report, format_ping, format_ports,
     format_services, format_status,
 )
